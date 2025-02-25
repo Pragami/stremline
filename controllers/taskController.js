@@ -8,7 +8,7 @@ const createTask = asyncHandler(async (req, res) => {
     const { userId } = req.user;
     const { title, team, stage, date, priority, assets, department } = req.body;
     console.log("team", team);
-    
+
     let text = "New task has been assigned to you";
     if (team?.length > 1) {
       text = text + ` and ${team?.length - 1} others.`;
@@ -70,7 +70,7 @@ const requestTaskCompletion = asyncHandler(async (req, res) => {
     task.isApproved = false; // Awaiting admin approval
     await task.save();
 
-    res.status(200).json({ status: true, message: "Completion request sent to admin." });
+    res.status(200).json({ status: true, message: "Completion request sent to manager." });
   } catch (error) {
     res.status(400).json({ status: false, message: error.message });
   }
@@ -84,10 +84,6 @@ const approveTaskCompletion = asyncHandler(async (req, res) => {
 
     if (!task) {
       return res.status(404).json({ status: false, message: "Task not found." });
-    }
-
-    if (task.stage !== "in progress") {
-      return res.status(400).json({ status: false, message: "Only 'in progress' tasks can be approved." });
     }
 
     task.stage = "completed"; // Mark as completed
@@ -185,6 +181,7 @@ const updateTaskStage = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
     const { stage } = req.body;
+    const { isAdmin } = req.user;
 
     const task = await Task.findById(id);
 
@@ -192,7 +189,16 @@ const updateTaskStage = asyncHandler(async (req, res) => {
       return res.status(404).json({ status: false, message: "Task not found." });
     }
 
-    if (stage === "completed") {
+    // Allow admin to directly complete tasks
+    if (stage === "completed" && isAdmin) {
+      task.stage = "completed";
+      task.isApproved = true;
+      await task.save();
+      return res.status(200).json({ status: true, message: "Task marked as completed." });
+    }
+
+    // Non-admin users cannot directly complete tasks
+    if (stage === "completed" && !isAdmin) {
       return res.status(403).json({ status: false, message: "Tasks cannot be completed directly. Request approval first." });
     }
 
